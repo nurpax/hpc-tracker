@@ -72,8 +72,10 @@ def main():
     for m in modules:
         total_top_level = sum_tuple(total_top_level, m.toplevel)
         total_exprs     = sum_tuple(total_exprs, m.exprs)
-    print ("Total exprs covered/boxes:     %d/%d" % (total_top_level[0], total_top_level[1]))
-    print ("Total top-level covered/boxes: %d/%d" % (total_exprs[0], total_exprs[1]))
+
+    print ("Total top-level covered/boxes: %d/%d" % (total_top_level[0], total_top_level[1]))
+    print ("Total exprs covered/boxes:     %d/%d" % (total_exprs[0], total_exprs[1]))
+
     vals.append(float(total_top_level[0]) / total_top_level[1])
     vals.append(float(total_exprs[0]) / total_exprs[1])
 
