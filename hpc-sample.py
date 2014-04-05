@@ -4,6 +4,7 @@ import gspread
 from xml.dom.minidom import parse
 import sys
 import re
+import os
 
 class ModuleCoverage():
     def __init__(self, name, exprs, toplevel):
@@ -19,16 +20,23 @@ def find(f, seq):
     return None
 
 def read_pass():
-    ln = open(".pass").read().splitlines()
+    ln = open(os.path.dirname(sys.argv[0]) + "/.pass").read().splitlines()
     return (ln[0], ln[1])
 
+package_re = re.compile("(.*)-(.*)/(.*)")
+
 def parse_module(doc):
-    name = doc.attributes["name"].value
-    exprs = doc.getElementsByTagName("exprs")[0]
-    top = doc.getElementsByTagName("toplevel")[0]
-    e = (int(exprs.attributes["count"].value), int(exprs.attributes["boxes"].value))
-    t = (int(top.attributes["count"].value), int(top.attributes["boxes"].value))
-    return ModuleCoverage(name, e, t)
+    m = package_re.match(doc.attributes["name"].value)
+    # Include only package modules, not test code.  Also strip out package prefix.
+    if m:
+        name = m.group(3)
+        exprs = doc.getElementsByTagName("exprs")[0]
+        top = doc.getElementsByTagName("toplevel")[0]
+        e = (int(exprs.attributes["count"].value), int(exprs.attributes["boxes"].value))
+        t = (int(top.attributes["count"].value), int(top.attributes["boxes"].value))
+        return ModuleCoverage(name, e, t)
+    else:
+        return None
 
 def top_level_column_name(n):
     return n + " (top-level)"
@@ -40,12 +48,19 @@ def sum_tuple((a1,b1), (a2,b2)):
     return (a1+a2, b1+b2)
 
 def main():
-    cov_xml = parse(sys.argv[1])
-    modules = map(parse_module, cov_xml.getElementsByTagName("module"))
+    if len(sys.argv) < 3:
+        print "Usage: hpc-sample.py <spreadsheet name> <xml report filename>"
+        sys.exit(1)
+
+    spreadsheet_name = sys.argv[1]
+    xml_name = sys.argv[2]
+
+    cov_xml = parse(xml_name)
+    modules = filter(lambda x: x is not None, map(parse_module, cov_xml.getElementsByTagName("module")))
 
     (login,passwd) = read_pass()
     gc = gspread.login(login, passwd)
-    wks = gc.open("hswtrack code coverage").sheet1
+    wks = gc.open(spreadsheet_name).sheet1
     wks.update_cell(1, 1, "Date")
     wks.update_cell(1, 2, "Total (top-level)")
     wks.update_cell(1, 3, "Total (exprs)")
@@ -57,6 +72,8 @@ def main():
     for module in modules:
         if top_level_column_name(module.name) not in column_titles[3:]:
             new_modules.append(module.name)
+
+    wks.add_cols(len(new_modules))
 
     for i in range(len(new_modules)):
         col_idx = len(column_titles)+1+i*2
